@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. Custom CSS for Styling (Tetap mempertahankan style ungu & teks hitam)
+# 2. Custom CSS for Styling
 st.markdown(
     """
     <style>
@@ -45,7 +45,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 3. Data Loading and Preprocessing (Sesuai tahap Data Wrangling di IPYNB)
+# 3. Data Loading and Preprocessing
 @st.cache_data
 def load_data():
     base_path = os.path.dirname(__file__)
@@ -56,18 +56,15 @@ def load_data():
 
     df = pd.read_csv(file_path)
     
-    # Cleaning: Menghilangkan kolom 'No' jika ada
     if "No" in df.columns:
         df = df.drop(columns="No")
 
-    # Membuat kolom datetime
     df["datetime"] = pd.to_datetime(df[["year", "month", "day", "hour"]])
 
-    # Handling missing values (Interpolasi linear sesuai IPYNB)
+    # Handling missing values sesuai IPYNB
     numeric_cols = df.select_dtypes(include=["float64", "int64"]).columns
     df[numeric_cols] = df[numeric_cols].interpolate(method="linear").ffill().bfill()
 
-    # Penentuan Musim
     def get_season(month):
         if month in [12, 1, 2]: return "Winter"
         elif month in [3, 4, 5]: return "Spring"
@@ -93,7 +90,6 @@ selected_year = st.sidebar.multiselect("Pilih Tahun", options=year_list, default
 season_list = ["Spring", "Summer", "Fall", "Winter"]
 selected_season = st.sidebar.multiselect("Pilih Musim", options=season_list, default=season_list)
 
-# Filter Data
 df_filtered = df[(df["year"].isin(selected_year)) & (df["season"].isin(selected_season))].copy()
 
 # 5. Header
@@ -109,10 +105,8 @@ with col4: st.metric("Total Baris Data", f"{len(df_filtered):,}")
 
 st.markdown("---")
 
-# --- VISUALISASI BERDASARKAN IPYNB ---
-
-# 7. Pertanyaan 1: Jam dengan Polusi Terburuk
-st.subheader("1. Kapan kualitas udara paling buruk dalam sehari?")
+# 7. Analysis 1: Jam dengan Polusi Terburuk
+st.subheader("1. Pada jam berapa rata-rata konsentrasi PM2.5 tertinggi terjadi di Kota Nongzhanguan selama periode Maret 2013 hingga Februari 2017?")
 pm25_hourly = df_filtered.groupby("hour", as_index=False)["PM2.5"].mean()
 fig1 = px.line(pm25_hourly, x="hour", y="PM2.5", markers=True, 
                title="Rata-rata Konsentrasi PM2.5 per Jam", 
@@ -121,13 +115,10 @@ fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", 
 st.plotly_chart(fig1, use_container_width=True)
 
 with st.expander("💡 Lihat Insight Pertanyaan 1"):
-    st.write("""
-    Berdasarkan visualisasi, konsentrasi **PM2.5 cenderung meningkat pada malam hari**, puncaknya terjadi sekitar jam **20:00 hingga 23:00**. 
-    Hal ini kemungkinan disebabkan oleh penurunan suhu permukaan dan aktivitas pembuangan emisi yang terperangkap di lapisan atmosfer yang lebih rendah pada malam hari.
-    """)
+    st.write("Berdasarkan visualisasi, konsentrasi PM2.5 cenderung meningkat pada malam hari, puncaknya terjadi sekitar jam 20:00 hingga 23:00.")
 
-# 8. Pertanyaan 2: Tren per Bulan
-st.subheader("2. Bagaimana tren kualitas udara per bulan selama periode pengamatan?")
+# 8. Analysis 2: Tren Bulanan
+st.subheader("2. Bagaimana tren bulanan rata-rata PM2.5 di Kota Nongzhanguan dari Maret 2013 sampai Februari 2017, dan pada bulan apa terjadi peningkatan atau penurunan signifikan?")
 pm25_monthly = df_filtered.groupby("year_month", as_index=False)["PM2.5"].mean()
 fig2 = px.line(pm25_monthly, x="year_month", y="PM2.5", 
                title="Tren Bulanan PM2.5 (2013-2017)", 
@@ -136,14 +127,10 @@ fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", 
 st.plotly_chart(fig2, use_container_width=True)
 
 with st.expander("💡 Lihat Insight Pertanyaan 2"):
-    st.write("""
-    Kualitas udara menunjukkan **fluktuasi musiman yang sangat jelas setiap tahunnya**. 
-    Tingkat polusi PM2.5 tertinggi secara konsisten terjadi pada **akhir tahun (Desember) hingga awal tahun (Januari)**, 
-    menunjukkan adanya pola siklus tahunan yang berkaitan erat dengan musim.
-    """)
+    st.write("Tingkat polusi PM2.5 tertinggi secara konsisten terjadi pada akhir tahun (Desember) hingga awal tahun (Januari).")
 
-# 9. Pertanyaan 3: Faktor di Musim Dingin (Winter)
-st.subheader("3. Faktor apa yang paling mempengaruhi polusi udara pada musim dingin?")
+# 9. Analysis 3: Korelasi Musim Dingin
+st.subheader("3. Faktor cuaca apa yang paling berkontribusi terhadap lonjakan PM2.5 pada musim dingin (Desember–Februari) di Kota Nongzhanguan selama periode pengamatan?")
 df_winter = df_filtered[df_filtered["season"] == "Winter"]
 if not df_winter.empty:
     corr_cols = ["PM2.5", "PM10", "SO2", "NO2", "CO", "O3", "TEMP", "PRES", "DEWP", "RAIN", "WSPM"]
@@ -158,16 +145,12 @@ if not df_winter.empty:
     st.plotly_chart(fig3, use_container_width=True)
     
     with st.expander("💡 Lihat Insight Pertanyaan 3"):
-        st.write("""
-        Pada musim dingin, **PM10 dan CO** memiliki korelasi positif paling kuat dengan PM2.5. 
-        Selain itu, **Dew Point (DEWP)** juga menunjukkan pengaruh yang signifikan, menandakan bahwa kelembapan dan partikel polutan lain 
-        bergerak beriringan meningkatkan polusi di musim dingin.
-        """)
+        st.write("Pada musim dingin, PM10 dan CO memiliki korelasi positif paling kuat dengan PM2.5.")
 else:
     st.info("Pilih 'Winter' pada sidebar untuk melihat analisis korelasi musim dingin.")
 
-# 10. Pertanyaan 4: Perbandingan Musim
-st.subheader("4. Apakah tingkat polusi berbeda signifikan antar musim?")
+# 10. Analysis 4: Perbandingan Musim
+st.subheader("4. Apakah terdapat perbedaan signifikan rata-rata PM2.5 antar musim (spring, summer, fall, winter) di Kota Nongzhanguan pada tahun 2013–2017, dan musim mana yang memiliki kualitas udara terburuk?")
 pm25_season = df_filtered.groupby("season", as_index=False)["PM2.5"].mean()
 season_order = ["Spring", "Summer", "Fall", "Winter"]
 pm25_season["season"] = pd.Categorical(pm25_season["season"], categories=season_order, ordered=True)
@@ -181,18 +164,11 @@ fig4.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", 
 st.plotly_chart(fig4, use_container_width=True)
 
 with st.expander("💡 Lihat Insight Pertanyaan 4"):
-    st.write("""
-    **Musim Dingin (Winter) adalah musim dengan tingkat polusi terburuk**, diikuti oleh Musim Semi (Spring). 
-    Musim Panas (Summer) cenderung memiliki tingkat PM2.5 yang paling rendah dibandingkan musim lainnya.
-    """)
+    st.write("Musim Dingin (Winter) adalah musim dengan tingkat polusi terburuk.")
 
-# 11. Final Conclusion (Sesuai Conclusion di IPYNB)
+# 11. Final Conclusion
 st.markdown("---")
 st.subheader("📌 Kesimpulan Akhir")
-st.success("""
-1. Kualitas udara di Nongzhanguan sangat dipengaruhi oleh waktu, di mana **malam hari adalah waktu paling berpolusi**.
-2. Terdapat tren musiman di mana **musim dingin mengalami lonjakan PM2.5 yang signifikan** setiap tahunnya.
-3. Faktor seperti PM10, CO, dan DEWP menjadi indikator utama meningkatnya polusi.
-""")
+st.success("Malam hari adalah waktu paling berpolusi, dan musim dingin mengalami lonjakan PM2.5 yang signifikan setiap tahunnya.")
 
 st.caption("Dashboard by Vinda Karunia Surya | Analisis Data Kualitas Udara Nongzhanguan")
