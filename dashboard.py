@@ -23,14 +23,17 @@ st.markdown(
     [data-testid="stSidebar"] {
         background: linear-gradient(180deg, #ede7f6 0%, #d1c4e9 100%);
     }
+    /* Teks label filter (Pilih Tahun, Pilih Musim) jadi Hitam */
     [data-testid="stSidebarContent"] .stWidgetLabel p, 
     [data-testid="stSidebarContent"] label p {
         color: #000000 !important;
         font-weight: bold !important;
     }
+    /* Judul Filter Dashboard jadi Hitam */
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 {
         color: #000000 !important;
     }
+    /* Box Filter (Tags) warna Ungu Tua, Teks Putih */
     [data-testid="stMultiSelect"] span[data-baseweb="tag"] {
         background-color: #4a148c !important;
     }
@@ -45,7 +48,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 3. Data Loading and Preprocessing
+# 3. Data Loading and Preprocessing (Sesuai tahap Data Wrangling di IPYNB)
 @st.cache_data
 def load_data():
     base_path = os.path.dirname(__file__)
@@ -61,7 +64,7 @@ def load_data():
 
     df["datetime"] = pd.to_datetime(df[["year", "month", "day", "hour"]])
 
-    # Handling missing values sesuai IPYNB
+    # Handling missing values sesuai IPYNB (Interpolasi linear)
     numeric_cols = df.select_dtypes(include=["float64", "int64"]).columns
     df[numeric_cols] = df[numeric_cols].interpolate(method="linear").ffill().bfill()
 
@@ -90,6 +93,7 @@ selected_year = st.sidebar.multiselect("Pilih Tahun", options=year_list, default
 season_list = ["Spring", "Summer", "Fall", "Winter"]
 selected_season = st.sidebar.multiselect("Pilih Musim", options=season_list, default=season_list)
 
+# Filter Data
 df_filtered = df[(df["year"].isin(selected_year)) & (df["season"].isin(selected_season))].copy()
 
 # 5. Header
@@ -105,70 +109,48 @@ with col4: st.metric("Total Baris Data", f"{len(df_filtered):,}")
 
 st.markdown("---")
 
-# 7. Analysis 1: Jam dengan Polusi Terburuk
-st.subheader("1. Pada jam berapa rata-rata konsentrasi PM2.5 tertinggi terjadi di Kota Nongzhanguan selama periode Maret 2013 hingga Februari 2017?")
+# 7. Analysis 1: Polusi per Jam
+st.subheader("1. Kapan kualitas udara paling buruk dalam sehari?")
 pm25_hourly = df_filtered.groupby("hour", as_index=False)["PM2.5"].mean()
 fig1 = px.line(pm25_hourly, x="hour", y="PM2.5", markers=True, 
-               title="Rata-rata Konsentrasi PM2.5 per Jam", 
-               color_discrete_sequence=["#6a1b9a"])
+               title="Rata-rata PM2.5 per Jam", color_discrete_sequence=["#6a1b9a"])
 fig1.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#4a148c"))
 st.plotly_chart(fig1, use_container_width=True)
 
 with st.expander("💡 Lihat Insight Pertanyaan 1"):
-    st.write("Berdasarkan visualisasi, konsentrasi PM2.5 cenderung meningkat pada malam hari, puncaknya terjadi sekitar jam 20:00 hingga 23:00.")
+    st.write("Konsentrasi PM2.5 cenderung meningkat pada malam hari (20:00 - 23:00).")
 
-# 8. Analysis 2: Tren Bulanan
-st.subheader("2. Bagaimana tren bulanan rata-rata PM2.5 di Kota Nongzhanguan dari Maret 2013 sampai Februari 2017, dan pada bulan apa terjadi peningkatan atau penurunan signifikan?")
+# 8. Analysis 2: Tren per Bulan
+st.subheader("2. Bagaimana tren kualitas udara per bulan selama periode pengamatan?")
 pm25_monthly = df_filtered.groupby("year_month", as_index=False)["PM2.5"].mean()
 fig2 = px.line(pm25_monthly, x="year_month", y="PM2.5", 
-               title="Tren Bulanan PM2.5 (2013-2017)", 
-               color_discrete_sequence=["#8e24aa"])
+               title="Tren Bulanan PM2.5", color_discrete_sequence=["#8e24aa"])
 fig2.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#4a148c"))
 st.plotly_chart(fig2, use_container_width=True)
 
 with st.expander("💡 Lihat Insight Pertanyaan 2"):
-    st.write("Tingkat polusi PM2.5 tertinggi secara konsisten terjadi pada akhir tahun (Desember) hingga awal tahun (Januari).")
+    st.write("Tingkat polusi tertinggi secara konsisten terjadi di akhir tahun (Desember).")
 
-# 9. Analysis 3: Korelasi Musim Dingin
-st.subheader("3. Faktor cuaca apa yang paling berkontribusi terhadap lonjakan PM2.5 pada musim dingin (Desember–Februari) di Kota Nongzhanguan selama periode pengamatan?")
+# 9. Analysis 3: Faktor Musim Dingin
+st.subheader("3. Faktor apa yang paling mempengaruhi polusi udara pada musim dingin?")
 df_winter = df_filtered[df_filtered["season"] == "Winter"]
 if not df_winter.empty:
     corr_cols = ["PM2.5", "PM10", "SO2", "NO2", "CO", "O3", "TEMP", "PRES", "DEWP", "RAIN", "WSPM"]
-    corr_matrix = df_winter[corr_cols].corr()
-    corr_pm25 = corr_matrix["PM2.5"].drop("PM2.5").sort_values(ascending=False).reset_index()
-    corr_pm25.columns = ["Variabel", "Korelasi"]
-    
-    fig3 = px.bar(corr_pm25, x="Variabel", y="Korelasi", 
-                  title="Korelasi Variabel terhadap PM2.5 di Musim Dingin", 
-                  color="Korelasi", color_continuous_scale=["#e1bee7", "#4a148c"])
+    corr_pm25 = df_winter[corr_cols].corr()["PM2.5"].drop("PM2.5").sort_values(ascending=False).reset_index()
+    fig3 = px.bar(corr_pm25, x="index", y="PM2.5", color="PM2.5", color_continuous_scale=["#e1bee7", "#4a148c"])
     fig3.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#4a148c"))
     st.plotly_chart(fig3, use_container_width=True)
-    
-    with st.expander("💡 Lihat Insight Pertanyaan 3"):
-        st.write("Pada musim dingin, PM10 dan CO memiliki korelasi positif paling kuat dengan PM2.5.")
 else:
-    st.info("Pilih 'Winter' pada sidebar untuk melihat analisis korelasi musim dingin.")
+    st.info("Pilih 'Winter' untuk melihat analisis korelasi.")
 
 # 10. Analysis 4: Perbandingan Musim
-st.subheader("4. Apakah terdapat perbedaan signifikan rata-rata PM2.5 antar musim (spring, summer, fall, winter) di Kota Nongzhanguan pada tahun 2013–2017, dan musim mana yang memiliki kualitas udara terburuk?")
+st.subheader("4. Apakah tingkat polusi berbeda signifikan antar musim?")
 pm25_season = df_filtered.groupby("season", as_index=False)["PM2.5"].mean()
-season_order = ["Spring", "Summer", "Fall", "Winter"]
-pm25_season["season"] = pd.Categorical(pm25_season["season"], categories=season_order, ordered=True)
-pm25_season = pm25_season.sort_values("season")
-
-fig4 = px.bar(pm25_season, x="season", y="PM2.5", 
-             title="Rata-rata PM2.5 Berdasarkan Musim", 
-             color="season",
+fig4 = px.bar(pm25_season, x="season", y="PM2.5", color="season", 
              color_discrete_map={"Spring": "#d1c4e9", "Summer": "#ba68c8", "Fall": "#8e24aa", "Winter": "#4a148c"})
 fig4.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)", font=dict(color="#4a148c"), showlegend=False)
 st.plotly_chart(fig4, use_container_width=True)
 
-with st.expander("💡 Lihat Insight Pertanyaan 4"):
-    st.write("Musim Dingin (Winter) adalah musim dengan tingkat polusi terburuk.")
-
-# 11. Final Conclusion
 st.markdown("---")
-st.subheader("📌 Kesimpulan Akhir")
-st.success("Malam hari adalah waktu paling berpolusi, dan musim dingin mengalami lonjakan PM2.5 yang signifikan setiap tahunnya.")
-
-st.caption("Dashboard by Vinda Karunia Surya | Analisis Data Kualitas Udara Nongzhanguan")
+st.success("📌 Kesimpulan: Malam hari paling berpolusi dan musim dingin mengalami lonjakan PM2.5 tahunan.")
+st.caption("Dashboard by Vinda Karunia Surya")
