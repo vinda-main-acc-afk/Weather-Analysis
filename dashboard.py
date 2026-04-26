@@ -1,8 +1,31 @@
+import sys
+import subprocess
+import importlib.util
+from pathlib import Path
+
+# =========================================================
+# AUTO INSTALL PLOTLY
+# Ini dibuat supaya error "ModuleNotFoundError: plotly" tidak muncul
+# meskipun Streamlit Cloud gagal membaca requirements.txt.
+# =========================================================
+def install_if_missing(package_name, import_name=None):
+    if import_name is None:
+        import_name = package_name
+
+    if importlib.util.find_spec(import_name) is None:
+        subprocess.check_call([
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            package_name
+        ])
+
+install_if_missing("plotly==5.24.1", "plotly")
+
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
-from pathlib import Path
 
 # =========================
 # PAGE CONFIG
@@ -45,7 +68,7 @@ st.markdown(
 )
 
 # =========================
-# DATA LOADING
+# LOAD DATA
 # =========================
 @st.cache_data
 def load_data():
@@ -66,13 +89,14 @@ def load_data():
 
     required_cols = ["year", "month", "day", "hour", "PM2.5", "PM10", "TEMP"]
     missing_cols = [col for col in required_cols if col not in df.columns]
+
     if missing_cols:
         st.error(f"Kolom berikut tidak ditemukan di CSV: {missing_cols}")
         st.stop()
 
     df["datetime"] = pd.to_datetime(df[["year", "month", "day", "hour"]])
 
-    numeric_cols = df.select_dtypes(include=["float64", "int64"]).columns
+    numeric_cols = df.select_dtypes(include=["number"]).columns
     df[numeric_cols] = df[numeric_cols].interpolate(method="linear").ffill().bfill()
 
     def get_season(month):
@@ -94,15 +118,23 @@ def load_data():
 df = load_data()
 
 # =========================
-# SIDEBAR FILTER
+# SIDEBAR
 # =========================
 st.sidebar.title("💜 Filter Dashboard")
 
 year_list = sorted(df["year"].unique().tolist())
-selected_year = st.sidebar.multiselect("Pilih Tahun", options=year_list, default=year_list)
+selected_year = st.sidebar.multiselect(
+    "Pilih Tahun",
+    options=year_list,
+    default=year_list
+)
 
 season_list = ["Spring", "Summer", "Fall", "Winter"]
-selected_season = st.sidebar.multiselect("Pilih Musim", options=season_list, default=season_list)
+selected_season = st.sidebar.multiselect(
+    "Pilih Musim",
+    options=season_list,
+    default=season_list
+)
 
 df_filtered = df[
     (df["year"].isin(selected_year)) &
@@ -136,9 +168,9 @@ with col4:
 st.markdown("---")
 
 # =========================
-# ANALISIS 1
+# CHART 1
 # =========================
-st.subheader("1. Pada jam berapa rata-rata konsentrasi PM2.5 tertinggi terjadi?")
+st.subheader("1. Rata-rata PM2.5 berdasarkan jam")
 
 pm25_hourly = df_filtered.groupby("hour", as_index=False)["PM2.5"].mean()
 
@@ -151,6 +183,8 @@ fig1 = px.line(
     color_discrete_sequence=["#6a1b9a"]
 )
 fig1.update_layout(
+    xaxis_title="Jam",
+    yaxis_title="Rata-rata PM2.5",
     plot_bgcolor="rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
     font=dict(color="#4a148c")
@@ -162,9 +196,9 @@ with st.expander("💡 Lihat Insight Pertanyaan 1"):
     st.write(f"Konsentrasi PM2.5 tertinggi terjadi sekitar pukul {int(max_hour):02d}:00.")
 
 # =========================
-# ANALISIS 2
+# CHART 2
 # =========================
-st.subheader("2. Bagaimana tren bulanan rata-rata PM2.5?")
+st.subheader("2. Tren bulanan rata-rata PM2.5")
 
 pm25_monthly = df_filtered.groupby("year_month", as_index=False)["PM2.5"].mean()
 
@@ -173,7 +207,7 @@ fig2 = px.line(
     x="year_month",
     y="PM2.5",
     markers=True,
-    title="Tren Bulanan PM2.5 (2013-2017)",
+    title="Tren Bulanan PM2.5",
     color_discrete_sequence=["#8e24aa"]
 )
 fig2.update_layout(
@@ -192,9 +226,9 @@ with st.expander("💡 Lihat Insight Pertanyaan 2"):
     st.write(f"PM2.5 tertinggi terjadi pada {max_month}, sedangkan terendah pada {min_month}.")
 
 # =========================
-# ANALISIS 3
+# CHART 3
 # =========================
-st.subheader("3. Faktor apa yang berkorelasi dengan PM2.5 pada musim dingin?")
+st.subheader("3. Korelasi variabel terhadap PM2.5 pada musim dingin")
 
 df_winter = df_filtered[df_filtered["season"] == "Winter"]
 
@@ -223,6 +257,8 @@ if not df_winter.empty:
         color_continuous_scale=["#e1bee7", "#4a148c"]
     )
     fig3.update_layout(
+        xaxis_title="Variabel",
+        yaxis_title="Nilai Korelasi",
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         font=dict(color="#4a148c")
@@ -240,9 +276,9 @@ else:
     st.info("Pilih 'Winter' pada sidebar untuk melihat analisis korelasi musim dingin.")
 
 # =========================
-# ANALISIS 4
+# CHART 4
 # =========================
-st.subheader("4. Musim mana yang memiliki rata-rata PM2.5 tertinggi?")
+st.subheader("4. Rata-rata PM2.5 berdasarkan musim")
 
 pm25_season = df_filtered.groupby("season", as_index=False)["PM2.5"].mean()
 
@@ -282,13 +318,13 @@ with st.expander("💡 Lihat Insight Pertanyaan 4"):
     st.write(f"Musim dengan rata-rata PM2.5 tertinggi adalah {worst_season}.")
 
 # =========================
-# KESIMPULAN
+# CONCLUSION
 # =========================
 st.markdown("---")
 st.subheader("📌 Kesimpulan Akhir")
 st.success(
-    "Dashboard menunjukkan pola polusi PM2.5 berdasarkan jam, bulan, musim, "
-    "serta hubungan PM2.5 dengan variabel cuaca dan polutan lain."
+    "Dashboard ini menggunakan Plotly dan menampilkan analisis kualitas udara "
+    "berdasarkan jam, bulan, musim, serta korelasi variabel terhadap PM2.5."
 )
 
 st.caption("Dashboard by Vinda Karunia Surya | Analisis Data Kualitas Udara Nongzhanguan")
